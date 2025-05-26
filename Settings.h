@@ -110,11 +110,19 @@ typedef struct Settings_ {
    bool topologyAffinity;
    #endif
 
+   bool countSPUsFromOne;
+   bool detailedSPUTime;
+   bool showSPUUsage;
+   bool showSPUFrequency;
+   bool accountGuestInSPUMeter;
+
    bool changed;
    uint64_t lastUpdate;
 } Settings;
 
 #define Settings_cpuId(settings, cpu) ((settings)->countCPUsFromOne ? (cpu)+1 : (cpu))
+
+#define Settings_spuId(settings, cpu) ((settings)->countSPUsFromOne ? (cpu)+1 : (cpu))
 
 static inline RowField ScreenSettings_getActiveSortKey(const ScreenSettings* this) {
    return (this->treeView)

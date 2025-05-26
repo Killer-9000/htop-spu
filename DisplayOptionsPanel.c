@@ -171,6 +171,13 @@ DisplayOptionsPanel* DisplayOptionsPanel_new(Settings* settings, ScreenManager* 
    Panel_add(super, (Object*) CheckItem_newByRef("Add guest time in CPU meter percentage", &(settings->accountGuestInCPUMeter)));
    Panel_add(super, (Object*) CheckItem_newByRef("Also show CPU percentage numerically", &(settings->showCPUUsage)));
    Panel_add(super, (Object*) CheckItem_newByRef("Also show CPU frequency", &(settings->showCPUFrequency)));
+
+   Panel_add(super, (Object*) CheckItem_newByRef("Detailed SPU time (System/IO-Wait/Hard-IRQ/Soft-IRQ/Steal/Guest)", &(settings->detailedSPUTime)));
+   Panel_add(super, (Object*) CheckItem_newByRef("Count SPUs from 1 instead of 0", &(settings->countSPUsFromOne)));
+   Panel_add(super, (Object*) CheckItem_newByRef("Add guest time in SPU meter percentage", &(settings->accountGuestInSPUMeter)));
+   Panel_add(super, (Object*) CheckItem_newByRef("Also show SPU percentage numerically", &(settings->showSPUUsage)));
+   Panel_add(super, (Object*) CheckItem_newByRef("Also show SPU frequency", &(settings->showSPUFrequency)));
+
    #ifdef BUILD_WITH_CPU_TEMP
    Panel_add(super, (Object*) CheckItem_newByRef(
    #if defined(HTOP_LINUX)

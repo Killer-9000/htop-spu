@@ -83,6 +83,7 @@ myhtopsources = \
 	ScreenTabsPanel.c \
 	Settings.c \
 	SignalsPanel.c \
+	SPUMeter.c \
 	SwapMeter.c \
 	SysArchMeter.c \
 	Table.c \
@@ -156,6 +157,7 @@ myhtopheaders = \
 	ScreenTabsPanel.h \
 	Settings.h \
 	SignalsPanel.h \
+	SPUMeter.h \
 	SwapMeter.h \
 	SysArchMeter.h \
 	Table.h \

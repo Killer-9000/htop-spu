@@ -26,6 +26,7 @@ in the source distribution for its full text.
 #include "Platform.h"
 #include "ProvideCurses.h"
 #include "Settings.h"
+#include "SPUMeter.h"
 #include "XUtils.h"
 
 
@@ -111,6 +112,20 @@ static void AvailableMetersPanel_addCPUMeters(Panel* super, const MeterClass* ty
    }
 }
 
+// Handle (&CPUMeter_class) entries in the AvailableMetersPanel
+static void AvailableMetersPanel_addSPUMeters(Panel* super, const MeterClass* type, const Machine* host) {
+   if (host->existingSPUs > 1) {
+      Panel_add(super, (Object*) ListItem_new("SPU average", 0));
+      for (unsigned int i = 1; i <= host->existingSPUs; i++) {
+         char buffer[50];
+         xSnprintf(buffer, sizeof(buffer), "%s %d", type->uiName, Settings_spuId(host->settings, i - 1));
+         Panel_add(super, (Object*) ListItem_new(buffer, i));
+      }
+   } else {
+      Panel_add(super, (Object*) ListItem_new(type->uiName, 1));
+   }
+}
+
 typedef struct {
    Panel* super;
    unsigned int id;
@@ -160,15 +175,16 @@ AvailableMetersPanel* AvailableMetersPanel_new(Machine* host, Header* header, si
    // handle separately in the code below.  Likewise, identifiers for Dynamic
    // Meters are handled separately - similar to CPUs, this allows generation
    // of multiple different Meters (also using 'param' to distinguish them).
-   for (unsigned int i = 1; Platform_meterTypes[i]; i++) {
+   for (unsigned int i = 2; Platform_meterTypes[i]; i++) {
       const MeterClass* type = Platform_meterTypes[i];
-      assert(type != &CPUMeter_class);
+      assert(type != &CPUMeter_class || type != &SPUMeter_class);
       if (type == &DynamicMeter_class)
          AvailableMetersPanel_addDynamicMeters(super, host->settings, i);
       else
          AvailableMetersPanel_addPlatformMeter(super, type, i);
    }
    AvailableMetersPanel_addCPUMeters(super, &CPUMeter_class, host);
+   AvailableMetersPanel_addSPUMeters(super, &SPUMeter_class, host);
 
    return this;
 }

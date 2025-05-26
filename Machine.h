@@ -64,6 +64,9 @@ typedef struct Machine_ {
    unsigned int activeCPUs;
    unsigned int existingCPUs;
 
+   unsigned int activeSPUs;
+   unsigned int existingSPUs;
+
    UsersTable* usersTable;
    uid_t htopUserId;
    uid_t maxUserId;  /* recently observed */

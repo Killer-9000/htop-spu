@@ -127,6 +127,70 @@ static void LinuxMachine_updateCPUcount(LinuxMachine* this) {
    super->existingCPUs = currExisting;
 }
 
+static void LinuxMachine_updateSPUcount(LinuxMachine* this) {
+   unsigned int existing = 0, active = 0;
+   Machine* super = &this->super;
+
+   if (this->spuData)
+      return;
+
+   // Initialize the spuData array before anything else.
+   this->spuData = xCalloc(2, sizeof(CPUData));
+   this->spuData[0].online = true; /* average is always "online" */
+   super->activeSPUs = 0;
+   super->existingSPUs = 0;
+
+   DIR* dir = opendir("/sys/devices/system/spu");
+   if (!dir)
+      return;
+
+   unsigned int currExisting = super->existingSPUs;
+
+   const struct dirent* entry;
+   while ((entry = readdir(dir)) != NULL) {
+      if (entry->d_type != DT_DIR && entry->d_type != DT_UNKNOWN)
+         continue;
+
+      if (!String_startsWith(entry->d_name, "spu"))
+         continue;
+
+      char* endp;
+      unsigned long int id = strtoul(entry->d_name + 3, &endp, 10);
+      if (id == ULONG_MAX || endp == entry->d_name + 3 || *endp != '\0')
+         continue;
+
+      existing++;
+
+      /* readdir() iterates with no specific order */
+      unsigned int max = MAXIMUM(existing, id + 1);
+      if (max > currExisting) {
+         this->spuData = xReallocArrayZero(this->spuData, currExisting ? (currExisting + 1) : 0, max + /* aggregate */ 1, sizeof(CPUData));
+         this->spuData[0].online = true; /* average is always "online" */
+         currExisting = max;
+      }
+
+      active++;
+      this->spuData[id + 1].online = true;
+   }
+
+   closedir(dir);
+
+   // return if no SPU is found
+   if (existing < 1)
+      return;
+
+#ifdef HAVE_SENSORS_SENSORS_H
+   /* When started with offline SPUs, libsensors does not monitor those,
+    * even when they become online. */
+   if (super->existingSPUs != 0 && (active > super->activeSPUs || currExisting > super->existingSPUs))
+      LibSensors_reload();
+#endif
+
+   super->activeSPUs = active;
+   assert(existing == currExisting);
+   super->existingSPUs = currExisting;
+}
+
 static void LinuxMachine_scanMemoryInfo(LinuxMachine* this) {
    Machine* host = &this->super;
    memory_t availableMem = 0;
@@ -510,6 +574,74 @@ static void LinuxMachine_scanCPUTime(LinuxMachine* this) {
    fclose(file);
 }
 
+static void LinuxMachine_scanSPUTime(LinuxMachine* this) {
+   const Machine* super = &this->super;
+
+   LinuxMachine_updateSPUcount(this);
+
+   char statname[128];
+   for (unsigned int i = 0; i < super->existingSPUs; i++) {
+      xSnprintf(statname, sizeof(statname), "/sys/devices/system/spu/spu%d/stat", i);
+      FILE* file = fopen(statname, "r");
+      if (!file)
+      {
+         xSnprintf(statname, sizeof(statname), "Cannot open /sys/devices/system/spu/spu%d/stat", i);
+         CRT_fatalError(statname);
+      }
+
+	   char state[128];
+      unsigned long long int usertime, systemtime, ioWait, idletime;
+      unsigned long long int voluntary_ctx_switches, involuntary_ctx_switches, slb_misses, hash_faults, minor_page_faults, major_page_faults, class2_interrupts, ppe_library;
+
+      // Depending on your kernel version,
+      // 5, 7, 8 or 9 of these fields will be set.
+      // The rest will remain at zero.
+      int ret = fscanf(file, "%s %16llu %16llu %16llu %16llu %16llu %16llu %16llu %16llu %16llu %16llu %16llu %16llu",
+         state, &usertime, &systemtime, &ioWait, &idletime,
+         &voluntary_ctx_switches, &involuntary_ctx_switches, &slb_misses, &hash_faults, &minor_page_faults, &major_page_faults,  &class2_interrupts,  &ppe_library
+      );
+      
+      if (ret != 13)
+         CRT_fatalError("SPU Stat file doesn't match regular pattern.");
+
+      // Fields existing on kernels >= 2.6
+      // (and RHEL's patched kernel 2.4...)
+      unsigned long long int idlealltime = idletime + ioWait;
+      unsigned long long int systemalltime = systemtime;
+      unsigned long long int totaltime = usertime + systemalltime + idlealltime;
+      CPUData* spuData = &(this->spuData[i + 1]);
+      // Since we do a subtraction (usertime - guest) and sputime64_to_clock_t()
+      // used in /proc/stat rounds down numbers, it can lead to a case where the
+      // integer overflow.
+      spuData->userPeriod = saturatingSub(usertime, spuData->userTime);
+      spuData->nicePeriod = 0;
+      spuData->systemPeriod = saturatingSub(systemtime, spuData->systemTime);
+      spuData->systemAllPeriod = saturatingSub(systemalltime, spuData->systemAllTime);
+      spuData->idleAllPeriod = saturatingSub(idlealltime, spuData->idleAllTime);
+      spuData->idlePeriod = saturatingSub(idletime, spuData->idleTime);
+      spuData->ioWaitPeriod = saturatingSub(ioWait, spuData->ioWaitTime);
+      spuData->irqPeriod = 0;
+      spuData->softIrqPeriod = 0;
+      spuData->stealPeriod = 0;
+      spuData->guestPeriod = 0;
+      spuData->totalPeriod = saturatingSub(totaltime, spuData->totalTime);
+      spuData->userTime = usertime;
+      spuData->niceTime = 0;
+      spuData->systemTime = systemtime;
+      spuData->systemAllTime = systemalltime;
+      spuData->idleAllTime = idlealltime;
+      spuData->idleTime = idletime;
+      spuData->ioWaitTime = ioWait;
+      spuData->irqTime = 0;
+      spuData->softIrqTime = 0;
+      spuData->stealTime = 0;
+      spuData->guestTime = 0;
+      spuData->totalTime = totaltime;
+
+      fclose(file);
+   }
+}
+
 static int scanCPUFrequencyFromSysCPUFreq(LinuxMachine* this) {
    const Machine* super = &this->super;
    int numCPUsWithFrequency = 0;
@@ -732,6 +864,7 @@ void Machine_scan(Machine* super) {
    LinuxMachine_scanZfsArcstats(this);
    LinuxMachine_scanZramInfo(this);
    LinuxMachine_scanCPUTime(this);
+   LinuxMachine_scanSPUTime(this);
 
    const Settings* settings = super->settings;
    if (settings->showCPUFrequency
@@ -786,6 +919,9 @@ Machine* Machine_new(UsersTable* usersTable, uid_t userId) {
 
    // Initialize CPU count
    LinuxMachine_updateCPUcount(this);
+
+   // Initialize SPU count
+   LinuxMachine_updateSPUcount(this);
 
    #ifdef HAVE_SENSORS_SENSORS_H
    // Fetch CPU topology

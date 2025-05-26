@@ -47,6 +47,7 @@ in the source distribution for its full text.
 #include "PressureStallMeter.h"
 #include "ProvideCurses.h"
 #include "Settings.h"
+#include "SPUMeter.h"
 #include "SwapMeter.h"
 #include "SysArchMeter.h"
 #include "TasksMeter.h"
@@ -211,6 +212,7 @@ void Platform_setBindings(Htop_Action* keys) {
 
 const MeterClass* const Platform_meterTypes[] = {
    &CPUMeter_class,
+   &SPUMeter_class,
    &ClockMeter_class,
    &DateMeter_class,
    &DateTimeMeter_class,
@@ -237,6 +239,18 @@ const MeterClass* const Platform_meterTypes[] = {
    &RightCPUs4Meter_class,
    &LeftCPUs8Meter_class,
    &RightCPUs8Meter_class,
+   &AllSPUsMeter_class,
+   &AllSPUs2Meter_class,
+   &AllSPUs4Meter_class,
+   &AllSPUs8Meter_class,
+   &LeftSPUsMeter_class,
+   &RightSPUsMeter_class,
+   &LeftSPUs2Meter_class,
+   &RightSPUs2Meter_class,
+   &LeftSPUs4Meter_class,
+   &RightSPUs4Meter_class,
+   &LeftSPUs8Meter_class,
+   &RightSPUs8Meter_class,
    &BlankMeter_class,
    &PressureStallCPUSomeMeter_class,
    &PressureStallIOSomeMeter_class,
@@ -362,6 +376,53 @@ double Platform_setCPUValues(Meter* this, unsigned int cpu) {
 
 #ifdef HAVE_SENSORS_SENSORS_H
    v[CPU_METER_TEMPERATURE] = cpuData->temperature;
+#else
+   v[CPU_METER_TEMPERATURE] = NAN;
+#endif
+
+   return percent;
+}
+
+double Platform_setSPUValues(Meter* this, unsigned int spu) {
+   const LinuxMachine* lhost = (const LinuxMachine*) this->host;
+   const Settings* settings = this->host->settings;
+   const CPUData* spuData = &(lhost->spuData[spu]);
+   double total = (double) ( spuData->totalPeriod == 0 ? 1 : spuData->totalPeriod);
+   double percent;
+   double* v = this->values;
+
+   v[CPU_METER_NICE] = spuData->nicePeriod / total * 100.0;
+   v[CPU_METER_NORMAL] = spuData->userPeriod / total * 100.0;
+   if (settings->detailedSPUTime) {
+      v[CPU_METER_KERNEL]  = spuData->systemPeriod / total * 100.0;
+      v[CPU_METER_IRQ]     = spuData->irqPeriod / total * 100.0;
+      v[CPU_METER_SOFTIRQ] = spuData->softIrqPeriod / total * 100.0;
+      this->curItems = 5;
+
+      v[CPU_METER_STEAL]   = spuData->stealPeriod / total * 100.0;
+      v[CPU_METER_GUEST]   = spuData->guestPeriod / total * 100.0;
+      if (settings->accountGuestInSPUMeter) {
+         this->curItems = 7;
+      }
+
+      v[CPU_METER_IOWAIT]  = spuData->ioWaitPeriod / total * 100.0;
+   } else {
+      v[CPU_METER_KERNEL] = spuData->systemAllPeriod / total * 100.0;
+      v[CPU_METER_IRQ] = (spuData->stealPeriod + spuData->guestPeriod) / total * 100.0;
+      this->curItems = 4;
+   }
+
+   percent = sumPositiveValues(v, this->curItems);
+   percent = MINIMUM(percent, 100.0);
+
+   if (settings->detailedSPUTime) {
+      this->curItems = 8;
+   }
+
+   v[CPU_METER_FREQUENCY] = spuData->frequency;
+
+#ifdef HAVE_SENSORS_SENSORS_H
+   v[CPU_METER_TEMPERATURE] = spuData->temperature;
 #else
    v[CPU_METER_TEMPERATURE] = NAN;
 #endif

@@ -78,6 +78,8 @@ typedef struct LinuxMachine_ {
 
    CPUData* cpuData;
 
+   CPUData* spuData;
+
    #ifdef HAVE_SENSORS_SENSORS_H
    int maxPhysicalID;
    int maxCoreID;

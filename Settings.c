@@ -467,6 +467,17 @@ static bool Settings_read(Settings* this, const char* fileName, const Machine* h
          this->showCPUUsage = atoi(option[1]);
       } else if (String_eq(option[0], "show_cpu_frequency")) {
          this->showCPUFrequency = atoi(option[1]);
+      } else if (String_eq(option[0], "detailed_spu_time")) {
+         this->detailedSPUTime = atoi(option[1]);
+      } else if (String_eq(option[0], "spu_count_from_one")) {
+         this->countSPUsFromOne = atoi(option[1]);
+      } else if (String_eq(option[0], "spu_count_from_zero")) {
+         // old (inverted) naming also supported for backwards compatibility
+         this->countSPUsFromOne = !atoi(option[1]);
+      } else if (String_eq(option[0], "show_spu_usage")) {
+         this->showSPUUsage = atoi(option[1]);
+      } else if (String_eq(option[0], "show_spu_frequency")) {
+         this->showSPUFrequency = atoi(option[1]);
       } else if (String_eq(option[0], "show_cached_memory")) {
          this->showCachedMemory = atoi(option[1]);
       #ifdef BUILD_WITH_CPU_TEMP
@@ -701,6 +712,10 @@ int Settings_write(const Settings* this, bool onCrash) {
    printSettingInteger("cpu_count_from_one", this->countCPUsFromOne);
    printSettingInteger("show_cpu_usage", this->showCPUUsage);
    printSettingInteger("show_cpu_frequency", this->showCPUFrequency);
+   printSettingInteger("detailed_spu_time", this->detailedSPUTime);
+   printSettingInteger("spu_count_from_one", this->countSPUsFromOne);
+   printSettingInteger("show_spu_usage", this->showSPUUsage);
+   printSettingInteger("show_spu_frequency", this->showSPUFrequency);
    #ifdef BUILD_WITH_CPU_TEMP
    printSettingInteger("show_cpu_temperature", this->showCPUTemperature);
    printSettingInteger("degree_fahrenheit", this->degreeFahrenheit);
@@ -806,6 +821,10 @@ Settings* Settings_new(const Machine* host, Hashtable* dynamicMeters, Hashtable*
    this->countCPUsFromOne = false;
    this->showCPUUsage = true;
    this->showCPUFrequency = false;
+   this->detailedSPUTime = false;
+   this->countSPUsFromOne = false;
+   this->showSPUUsage = true;
+   this->showSPUFrequency = false;
    #ifdef BUILD_WITH_CPU_TEMP
    this->showCPUTemperature = false;
    this->degreeFahrenheit = false;
